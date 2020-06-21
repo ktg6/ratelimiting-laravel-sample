@@ -1,127 +1,77 @@
-## use laravel-http-logger
+## add ThrottleRequest.php
 
-ロギング機能のライブラリ、laravel-http-loggerをinstallします
+app/Http/Middleware/RateLimitting/ThrottleRequests.php
 
-↓具体的な方法は以下から参照できます
+middlewareにレートリミット用のファイルを作成します
 
-https://github.com/spatie/laravel-http-logger
+↓ 記事の最後尾に実装のベースとなったコードが記載されています
+Create a new file ApiThrottleRequests.php in app/Http/Middleware/ and paste the code below:
+https://stackoverflow.com/questions/40246741/laravel-rate-limit-to-return-a-json-payload
 
-
-## add LogWriter
-
-ミドルウェアにLogWriter.phpを追加します
-
-パス
-app\Http\Middleware\accesslog\LogWriter.php
+レスポンスを一部変更
 
 ```
-<?php
-
-namespace App\Http\Middleware\AccessLogs;
-
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Spatie\HttpLogger\DefaultLogWriter as DefaultLogWriter;
-
-class LogWriter extends DefaultLogWriter
-{
-    public function logRequest(Request $request): void
-    {
-        $method = strtoupper($request->getMethod());
-        
-        $uri = $request->getPathInfo();
-        
-        $bodyAsJson = json_encode($request->except(config('http-logger.except')));
-    
-        $message = "{$method} {$uri} - {$bodyAsJson}";
-    
-        Log::info($message);
-    }
-}
+$errorinfo = json_encode([
+'status_code' => '429',
+'error' => 'Too Many Requests',
+'error_description' => 'アクセス数が上限に達しました。',
+]);
 ```
 
-## add http-logger.php
+環境変数の値からレートリミットを設定
+$maxAttempts = (int) config('app.maxAttempts');
 
-コンフィグにhttp-logger.phpを追加します
+※Laravelではconfig経由で.envの値取得を推奨されています
+↓設定キャッシュの項目に記載あり
+https://readouble.com/laravel/6.x/ja/configuration.html
 
-config\http-logger.php
+引数の値を変えて、ここでは1分間の制限に指定
+$this->limiter->hit($key, 60);
+
+## change app/Http/Kernel.php
+
+kernel.phpに追加したパスを指定します
+※環境変数からレートリミットを制御させたいので、数値指定を削除しました
 
 ```
-<?php
 
-return [
-
-/*
- * The log profile which determines whether a request should be logged.
- * It should implement `LogProfile`.
- */
-'log_profile' => \Spatie\HttpLogger\LogNonGetRequests::class,
-
-/*
- * The log writer used to write the request to a log.
- * It should implement `LogWriter`.
- */
-// 'log_writer' => \Spatie\HttpLogger\DefaultLogWriter::class,
-// パスをMiddleWareに作ったファイルに変える
-'log_writer' => \Spatie\HttpLogger\accesslog\LogWriter::class,
-
-/*
- * Filter out body fields which will never be logged.
- */
-'except' => [
-    'password',
-    'password_confirmation',
+'api' => [
+'throttle', //環境変数から制御する為に数値設定を削除
+\Illuminate\Routing\Middleware\SubstituteBindings::class,
 ],
+
+protected $routeMiddleware = [
+'auth' => \App\Http\Middleware\Authenticate::class,
+'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
+'bindings' => \Illuminate\Routing\Middleware\SubstituteBindings::class,
+'cache.headers' => \Illuminate\Http\Middleware\SetCacheHeaders::class,
+'can' => \Illuminate\Auth\Middleware\Authorize::class,
+'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
+'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
+'signed' => \Illuminate\Routing\Middleware\ValidateSignature::class,
+'throttle' => \App\Http\Middleware\RateLimitting\ThrottleRequests::class, //ミドルウェアのファイルパスを指定
+'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
 ];
-```
-
-## add loging.php
-
-logging.phpに標準出力用のチャンネルを作ります
-
-config\logging.php
 
 ```
-'channels' => [
-        'stack' => [
-            'driver' => 'stack',
-            'channels' => ['single'],
-            'ignore_exceptions' => false,
-        ],
 
-        'stdout' => [
-            'driver' => 'monolog',
-            'handler' => StreamHandler::class,
-            'with' => [
-                'stream' => 'php://stdout', // 標準出力にログを吐き出す
-            ],
-            'level' => 'debug',
-        ],
-```
+## add app.php
 
-## change .env
+config\app.php
 
-.envのLOG_CHANNELをstdoutにします
+環境変数の設定数値を読み込むようにします
 
 ```
-LOG_CHANNEL=stdout
+'maxAttempts' => env('MAX_ATTEMPTS_PER_MINUTE', '100'),
 ```
 
-## add kernel.php
+## setting .env
 
-Kernel.phpのミドルウェアにルートを追加します
+.env
 
-add\Http\Kernel.php
+環境変数にアクセス上限数を設定します
 
 ```
-protected $middleware = [
-        // \App\Http\Middleware\TrustHosts::class,
-        \App\Http\Middleware\TrustProxies::class,
-        \Fruitcake\Cors\HandleCors::class,
-        \App\Http\Middleware\CheckForMaintenanceMode::class,
-        \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
-        \App\Http\Middleware\TrimStrings::class,
-        \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
-        \Spatie\HttpLogger\Middlewares\HttpLogger::class // ライブラリのパスを追加
-    ];
+#レートリミット制限値の設定：設定した数値のアクセス数を超えると制限がかかる
+MAX_ATTEMPTS_PER_MINUTE=100
 ```
