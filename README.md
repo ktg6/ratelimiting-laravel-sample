@@ -5,7 +5,9 @@ app/Http/Middleware/RateLimitting/ThrottleRequests.php
 middlewareにレートリミット用のファイルを作成します
 
 ↓ 記事の最後尾に実装のベースとなったコードが記載されています
+
 Create a new file ApiThrottleRequests.php in app/Http/Middleware/ and paste the code below:
+
 https://stackoverflow.com/questions/40246741/laravel-rate-limit-to-return-a-json-payload
 
 レスポンスを一部変更
@@ -19,18 +21,26 @@ $errorinfo = json_encode([
 ```
 
 環境変数の値からレートリミットを設定
+
+```
 $maxAttempts = (int) config('app.maxAttempts');
+```
 
 ※Laravelではconfig経由で.envの値取得を推奨されています
 ↓設定キャッシュの項目に記載あり
 https://readouble.com/laravel/6.x/ja/configuration.html
 
 引数の値を変えて、ここでは1分間の制限に指定
+
+```
 $this->limiter->hit($key, 60);
+```
+
 
 ## change app/Http/Kernel.php
 
 kernel.phpに追加したパスを指定します
+
 ※環境変数からレートリミットを制御させたいので、数値指定を削除しました
 
 ```
