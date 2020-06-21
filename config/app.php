@@ -125,6 +125,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rate Limit Access
+    |--------------------------------------------------------------------------
+    | Includes a middleware to rate limit access to your api.
+    | The throttle middleware accepts parameters that determine the maximum
+    | number of requests that can be made in one minutes.
+    |
+    | example　MAX_ATTEMPTS_PER_MINUTE=100：
+    | Limit is applied when exceeding 100 time attempts per minute
+    */
+
+    'maxAttempts' => env('MAX_ATTEMPTS_PER_MINUTE', '100'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Autoloaded Service Providers
     |--------------------------------------------------------------------------
     |
